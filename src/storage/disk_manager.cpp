@@ -14,7 +14,7 @@ DiskManager::DiskManager(const std::string& db_file) : file_name_{db_file} {
         if (!db_io_.is_open())
             throw std::runtime_error("Cannot open database file: " + db_file);
     }
-
+    // seekg moves the GET pointer to a location, move 0 points from the origin and to the end
     db_io_.seekg(0, std::ios::end);
     num_pages_ = static_cast<int>(db_io_.tellg()) / PAGE_SIZE;
 }
