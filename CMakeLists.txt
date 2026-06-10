@@ -42,6 +42,7 @@ set(STORAGE_SOURCES
   src/storage/lru_replacer.cpp
   src/storage/buffer_pool.cpp
   src/storage/heap_file.cpp
+  src/storage/bplus_tree.cpp
 )
 
 add_library(mydb_lib ${STORAGE_SOURCES})

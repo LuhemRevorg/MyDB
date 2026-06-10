@@ -3,6 +3,7 @@
 #include <filesystem>
 #include "storage/disk_manager.h"
 #include "storage/lru_replacer.h"
+#include "storage/bplus_tree.h"
 #include "storage/buffer_pool.h"
 #include "storage/heap_file.h"
 #include "common/types.h"
@@ -273,4 +274,100 @@ TEST_F(HeapFileTest, EarlyScanTermination) {
     return ++count < 5;  // stop after 5
   });
   EXPECT_EQ(count, 5);
+}
+
+// ── BPlusTree ─────────────────────────────────────────────────────────────────
+
+class BPlusTreeTest : public ::testing::Test {
+ protected:
+  const std::string path_ = "/tmp/mydb_bpt_test.db";
+  void TearDown() override { std::filesystem::remove(path_); }
+};
+
+TEST_F(BPlusTreeTest, InsertAndSearch) {
+  DiskManager dm(path_);
+  BufferPoolManager bpm(50, &dm);
+  BPlusTree tree("test", &bpm);
+
+  for (int i = 0; i < 100; ++i) {
+    tree.Insert(i, {0, static_cast<uint32_t>(i)});
+  }
+
+  for (int i = 0; i < 100; ++i) {
+    RID rid;
+    ASSERT_TRUE(tree.Search(i, &rid));
+    EXPECT_EQ(rid.slot_num, static_cast<uint32_t>(i));
+  }
+}
+
+TEST_F(BPlusTreeTest, SearchMissingKey) {
+  DiskManager dm(path_);
+  BufferPoolManager bpm(20, &dm);
+  BPlusTree tree("test", &bpm);
+
+  tree.Insert(10, {0, 10});
+  tree.Insert(20, {0, 20});
+
+  RID rid;
+  EXPECT_FALSE(tree.Search(15, &rid));
+  EXPECT_FALSE(tree.Search(99, &rid));
+}
+
+TEST_F(BPlusTreeTest, SplitWithSmallTree) {
+  DiskManager dm(path_);
+  BufferPoolManager bpm(50, &dm);
+  // Small max sizes so splits happen after just a few inserts.
+  BPlusTree tree("test", &bpm, /*leaf_max_size=*/4, /*internal_max_size=*/4);
+
+  for (int i = 0; i < 20; ++i)
+    tree.Insert(i, {0, static_cast<uint32_t>(i)});
+
+  for (int i = 0; i < 20; ++i) {
+    RID rid;
+    ASSERT_TRUE(tree.Search(i, &rid)) << "Missing key " << i;
+    EXPECT_EQ(rid.slot_num, static_cast<uint32_t>(i));
+  }
+}
+
+TEST_F(BPlusTreeTest, InsertDescendingOrder) {
+  DiskManager dm(path_);
+  BufferPoolManager bpm(50, &dm);
+  BPlusTree tree("test", &bpm, 4, 4);
+
+  for (int i = 99; i >= 0; --i)
+    tree.Insert(i, {0, static_cast<uint32_t>(i)});
+
+  for (int i = 0; i < 100; ++i) {
+    RID rid;
+    ASSERT_TRUE(tree.Search(i, &rid));
+    EXPECT_EQ(rid.slot_num, static_cast<uint32_t>(i));
+  }
+}
+
+TEST_F(BPlusTreeTest, RangeScan) {
+  DiskManager dm(path_);
+  BufferPoolManager bpm(50, &dm);
+  BPlusTree tree("test", &bpm, 4, 4);
+
+  for (int i = 0; i < 50; ++i)
+    tree.Insert(i, {0, static_cast<uint32_t>(i)});
+
+  std::vector<RID> results;
+  tree.RangeScan(10, 20, results);
+  ASSERT_EQ(results.size(), 11u);
+  for (int i = 0; i < 11; ++i)
+    EXPECT_EQ(results[i].slot_num, static_cast<uint32_t>(10 + i));
+}
+
+TEST_F(BPlusTreeTest, UpdateExistingKey) {
+  DiskManager dm(path_);
+  BufferPoolManager bpm(20, &dm);
+  BPlusTree tree("test", &bpm);
+
+  tree.Insert(42, {0, 1});
+  tree.Insert(42, {0, 99});  // overwrite
+
+  RID rid;
+  ASSERT_TRUE(tree.Search(42, &rid));
+  EXPECT_EQ(rid.slot_num, 99u);
 }
