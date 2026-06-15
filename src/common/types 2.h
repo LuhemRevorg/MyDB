@@ -59,11 +59,10 @@ class Schema {
   uint32_t       GetColumnOffset(size_t i)     const { return offsets_[i]; }
 
   size_t GetColumnIdx(const std::string& name) const {
-    // 1. Exact match ("age" or "t1.age")
+    // Exact match first ("age" or "t1.age")
     for (size_t i = 0; i < columns_.size(); ++i)
       if (columns_[i].name == name) return i;
-
-    // 2. Unqualified search: "age" matches schema column "t1.age"
+    // Unqualified lookup: "age" matches column named "t1.age"
     if (name.find('.') == std::string::npos) {
       int found = -1;
       for (size_t i = 0; i < columns_.size(); ++i) {
@@ -75,15 +74,6 @@ class Schema {
       }
       if (found != -1) return static_cast<size_t>(found);
     }
-
-    // 3. Qualified search: "t1.age" matches schema column "age" (post-aggregate schema)
-    auto dot = name.rfind('.');
-    if (dot != std::string::npos) {
-      std::string unqual = name.substr(dot + 1);
-      for (size_t i = 0; i < columns_.size(); ++i)
-        if (columns_[i].name == unqual) return i;
-    }
-
     throw std::runtime_error("Column not found: " + name);
   }
 

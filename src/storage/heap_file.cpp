@@ -123,3 +123,31 @@ void HeapFile::Scan(std::function<bool(const RID&, const Tuple&)> callback) cons
     cur = next;
   }
 }
+
+std::vector<page_id_t> HeapFile::GetPageIds() const {
+  std::vector<page_id_t> ids;
+  page_id_t cur = first_page_id_;
+  while (cur != INVALID_PAGE_ID) {
+    ids.push_back(cur);
+    Page* page = bpm_->FetchPage(cur);
+    if (!page) break;
+    page_id_t next = NextPageId(page->GetData());
+    bpm_->UnpinPage(cur, false);
+    cur = next;
+  }
+  return ids;
+}
+
+void HeapFile::ScanPage(page_id_t page_id,
+                        std::function<void(const RID&, const Tuple&)> callback) const {
+  Page* page = bpm_->FetchPage(page_id);
+  if (!page) return;
+  char* data = page->GetData();
+  uint32_t n = NumTuples(data);
+  uint32_t tuple_size = schema_.GetTupleSize();
+  for (uint32_t slot = 0; slot < n; ++slot) {
+    Tuple t = Tuple::FromBytes(TupleSlot(data, slot, tuple_size), tuple_size);
+    callback({page_id, slot}, t);
+  }
+  bpm_->UnpinPage(page_id, false);
+}

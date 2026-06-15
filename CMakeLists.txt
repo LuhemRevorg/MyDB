@@ -37,15 +37,31 @@ set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googlebenchmark)
 
 # ---------- Library ----------
-set(STORAGE_SOURCES
+set(SOURCES
   src/storage/disk_manager.cpp
   src/storage/lru_replacer.cpp
   src/storage/buffer_pool.cpp
   src/storage/heap_file.cpp
   src/storage/bplus_tree.cpp
+  src/parser/lexer.cpp
+  src/parser/parser.cpp
+  src/catalog/catalog.cpp
+  src/executor/seq_scan.cpp
+  src/executor/filter.cpp
+  src/executor/projection.cpp
+  src/executor/hash_join.cpp
+  src/executor/sort.cpp
+  src/executor/aggregate.cpp
+  src/executor/thread_pool.cpp
+  src/executor/parallel_seq_scan.cpp
+  src/executor/parallel_hash_join.cpp
+  src/executor/parallel_sort.cpp
+  src/concurrency/lockfree_hashtable.cpp
+  src/planner/planner.cpp
+  src/database.cpp
 )
 
-add_library(mydb_lib ${STORAGE_SOURCES})
+add_library(mydb_lib ${SOURCES})
 target_include_directories(mydb_lib PUBLIC src)
 target_compile_options(mydb_lib PRIVATE -Wall -Wextra -Wpedantic)
 
@@ -54,7 +70,12 @@ add_executable(mydb src/main.cpp)
 target_link_libraries(mydb PRIVATE mydb_lib)
 
 # ---------- Tests ----------
-add_executable(mydb_test test/storage_test.cpp)
+add_executable(mydb_test
+  test/storage_test.cpp
+  test/parser_test.cpp
+  test/executor_test.cpp
+  test/concurrency_test.cpp
+)
 target_link_libraries(mydb_test PRIVATE mydb_lib GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(mydb_test)

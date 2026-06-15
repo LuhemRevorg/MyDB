@@ -16,7 +16,16 @@ class HeapFile {
   // Scan all tuples. Callback returns false to stop early.
   void Scan(std::function<bool(const RID&, const Tuple&)> callback) const;
 
-  page_id_t GetFirstPageId() const { return first_page_id_; }
+  // For parallel scan: returns the ordered list of page IDs in the chain.
+  std::vector<page_id_t> GetPageIds() const;
+
+  // Scan a single page. Used by parallel workers claiming page ranges.
+  void ScanPage(page_id_t page_id,
+                std::function<void(const RID&, const Tuple&)> callback) const;
+
+  page_id_t        GetFirstPageId() const { return first_page_id_; }
+  BufferPoolManager* GetBPM()       const { return bpm_; }
+  const Schema&    GetSchema()      const { return schema_; }
 
  private:
   uint32_t MaxTuplesPerPage() const;
